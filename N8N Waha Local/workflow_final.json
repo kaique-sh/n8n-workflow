@@ -1,0 +1,213 @@
+[
+  {
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "webhook",
+          "options": {}
+        },
+        "name": "Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2.1,
+        "position": [
+          100,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "3f960d03-e312-45f2-a740-4290b893d602",
+                "name": "session",
+                "value": "={{ $json.body.session }}",
+                "type": "string"
+              },
+              {
+                "id": "553c803d-33d4-4db5-9654-a8515f34792d",
+                "name": "chatid",
+                "value": "={{ $json.body.payload.from }}",
+                "type": "string"
+              },
+              {
+                "id": "497e5970-7ee3-431d-8e19-740ab35753c1",
+                "name": "push_name",
+                "value": "={{ $json.body.me.pushName }}",
+                "type": "string"
+              },
+              {
+                "id": "a2d99f84-43b6-4d45-86a5-a7ba70a68d36",
+                "name": "msg_text",
+                "value": "={{ $json.body.payload.body }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "name": "Dados",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          300,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "expression",
+          "numberOutputs": 2,
+          "output": "={{ $json.msg_text.toLowerCase().includes('chamado') ? 0 : 1 }}"
+        },
+        "name": "Switch",
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.3,
+        "position": [
+          500,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://voetur1.freshservice.com/api/v2/tickets",
+          "authentication": "genericCredentialType",
+          "genericAuthType": "httpBasicAuth",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-Workspace-Id",
+                "value": "18"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={\n  \"subject\": \"[WhatsApp] Atendimento - \" + $json.push_name,\n  \"description\": \"Solicitação de atendimento via WhatsApp.\\n\\nContato: \" + $json.push_name + \".\\nTelefone: \" + $json.chat_id + \".\\n\\nMensagem:\\n\" + $json.msg_text,\n  \"email\": \"whatsapp+\" + $json.chat_id.replace(/\\s|@c.us/g, '') + \"@nextbot.com\",\n  \"phone\": $json.chat_id,\n  \"status\": 2,\n  \"priority\": 2,\n  \"source\": 4,\n  \"group_id\": 21000569060,\n  \"department_id\": 21000431906,\n  \"workspace_id\": 18,\n  \"category\": \"SUPORTE TÉCNICO\",\n  \"sub_category\": \"Outros Atendimentos\"\n}",
+          "options": {}
+        },
+        "name": "Freshservice - Abrir Ticket",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          750,
+          200
+        ],
+        "credentials": {
+          "httpBasicAuth": {
+            "id": "ySGhYLvWB4q58ixa",
+            "name": "Unnamed credential"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "resource": "Chatting",
+          "operation": "Send Text",
+          "session": "={{ $('Dados').item.json.session }}",
+          "chatId": "={{ $('Dados').item.json.chatid }}",
+          "text": "=\n✅ Chamado criado com sucesso!\\n\\n*Número do Chamado:* #{{ $json.ticket.id }}\\n*Link:* https://voetur1.freshservice.com/helpdesk/tickets/{{ $json.ticket.id }}\\n*Descrição:* {{ $('Dados').item.json.msg_text }}\\n\\n*Próximos passos:*\\n- Seu chamado foi direcionado para a fila de atendimento\\n- Um analista entrará em contato em breve"
+        },
+        "name": "Resposta Suporte (Ticket)",
+        "type": "n8n-nodes-waha.WAHA",
+        "typeVersion": 202411,
+        "position": [
+          1000,
+          200
+        ],
+        "credentials": {
+          "wahaApi": {
+            "id": "NB7I6t0SW0LRKUDH",
+            "name": "WAHA account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "model": "gemini-1.5-flash",
+          "memory": {
+            "name": "Redis",
+            "id": "1"
+          },
+          "instructions": "Você é um assistente de suporte educado e conciso. Responda com base nas ferramentas fornecidas e no contexto. Priorize a ajuda do usuário.",
+          "input": "={{ $('Dados').item.json.msg_text }}"
+        },
+        "name": "AI Agent",
+        "type": "@n8n/n8n-nodes-langchain.agent",
+        "typeVersion": 2.2,
+        "position": [
+          750,
+          400
+        ]
+      },
+      {
+        "parameters": {
+          "resource": "Chatting",
+          "operation": "Send Text",
+          "session": "={{ $('Dados').item.json.session }}",
+          "chatId": "={{ $('Dados').item.json.chatid }}",
+          "text": "={{ $('AI Agent').item.json.output }}",
+          "replyTo": "={{ $json.messageId }}"
+        },
+        "name": "Resposta IA (Texto)",
+        "type": "n8n-nodes-waha.WAHA",
+        "typeVersion": 202411,
+        "position": [
+          1000,
+          400
+        ],
+        "credentials": {
+          "wahaApi": {
+            "id": "NB7I6t0SW0LRKUDH",
+            "name": "WAHA account"
+          }
+        }
+      }
+    ],
+    "connections": {
+      "Webhook": [
+        {
+          "node": "Dados",
+          "type": "main",
+          "index": 0
+        }
+      ],
+      "Dados": [
+        {
+          "node": "Switch",
+          "type": "main",
+          "index": 0
+        }
+      ],
+      "Switch": [
+        {
+          "node": "Freshservice - Abrir Ticket",
+          "type": "main",
+          "index": 0
+        },
+        {
+          "node": "AI Agent",
+          "type": "main",
+          "index": 1
+        }
+      ],
+      "Freshservice - Abrir Ticket": [
+        {
+          "node": "Resposta Suporte (Ticket)",
+          "type": "main",
+          "index": 0
+        }
+      ],
+      "AI Agent": [
+        {
+          "node": "Resposta IA (Texto)",
+          "type": "main",
+          "index": 0
+        }
+      ]
+    }
+  }
+]
