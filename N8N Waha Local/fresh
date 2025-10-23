@@ -1,0 +1,169 @@
+[
+  {
+    "parameters": {
+      "conditions": {
+        "string": [
+          {
+            "value1": "={{ $json.message.toLowerCase() }}",
+            "operation": "contains",
+            "value2": "abrir chamado"
+          }
+        ]
+      },
+      "combineOperation": "any"
+    },
+    "id": "fs-abrir",
+    "name": "Quer abrir chamado?",
+    "type": "n8n-nodes-base.if",
+    "typeVersion": 1,
+    "position": [840, 200]
+  },
+  {
+    "parameters": {
+      "conditions": {
+        "string": [
+          {
+            "value1": "={{ $json.message.toLowerCase() }}",
+            "operation": "contains",
+            "value2": "consultar"
+          }
+        ]
+      },
+      "combineOperation": "any"
+    },
+    "id": "fs-consultar",
+    "name": "Quer consultar?",
+    "type": "n8n-nodes-base.if",
+    "typeVersion": 1,
+    "position": [840, 400]
+  },
+  {
+    "parameters": {
+      "values": {
+        "string": [
+          {
+            "name": "subject",
+            "value": "={{ $json.message.split('\\n')[0] || 'Suporte via WhatsApp' }}"
+          },
+          {
+            "name": "description",
+            "value": "={{ $json.message }}"
+          },
+          {
+            "name": "email",
+            "value": "={{ $json.chatId.replace('@c.us', '') }}@whatsapp.voetur.com"
+          },
+          {
+            "name": "name",
+            "value": "={{ $json.pushname || 'Cliente WhatsApp' }}"
+          },
+          {
+            "name": "phone",
+            "value": "={{ $json.chatId.replace('@c.us', '') }}"
+          }
+        ]
+      }
+    },
+    "id": "fs-prepara",
+    "name": "Prepara payload FS",
+    "type": "n8n-nodes-base.set",
+    "typeVersion": 3.2,
+    "position": [1080, 200]
+  },
+  {
+    "parameters": {
+      "method": "POST",
+      "url": "https://voetur1.freshservice.com/api/v2/tickets",
+      "authentication": "genericCredentialType",
+      "genericAuthType": "httpHeaderAuth",
+      "headers": {
+        "X-Workspace-Id": "18"
+      },
+      "body": {
+        "subject": "[WhatsApp] {{ $('Prepara payload FS').item.json.subject }}",
+        "description": "{{ $('Prepara payload FS').item.json.description }}",
+        "requester": {
+          "email": "{{ $('Prepara payload FS').item.json.email }}",
+          "name": "{{ $('Prepara payload FS').item.json.name }}",
+          "phone": "{{ $('Prepara payload FS').item.json.phone }}"
+        },
+        "priority": 2,
+        "source": 4,
+        "category": "SUPORTE TÉCNICO",
+        "sub_category": "Outros Atendimentos",
+        "group_id": "21000569060",
+        "department_id": "21000431906"
+      },
+      "options": {
+        "bodyContentType": "json"
+      }
+    },
+    "id": "fs-cria",
+    "name": "Criar Ticket FS",
+    "type": "n8n-nodes-base.httpRequest",
+    "typeVersion": 4.1,
+    "position": [1320, 200],
+    "credentials": {
+      "httpHeaderAuth": {
+        "id": "FS_HTTP_AUTH",
+        "name": "Freshservice Basic Auth"
+      }
+    }
+  },
+  {
+    "parameters": {
+      "values": {
+        "string": [
+          {
+            "name": "resposta",
+            "value": "✅ Chamado aberto no Freshservice! \\n🎫 *Protocolo*: {{ $('Criar Ticket FS').item.json.ticket.id }} \\n📌 Você pode consultá-lo a qualquer tempo digitando *consultar 123456*."
+          }
+        ]
+      }
+    },
+    "id": "fs-resp-cria",
+    "name": "Formata resposta criação",
+    "type": "n8n-nodes-base.set",
+    "typeVersion": 3.2,
+    "position": [1560, 200]
+  },
+  {
+    "parameters": {
+      "method": "GET",
+      "url": "=https://voetur1.freshservice.com/api/v2/tickets/{{ $json.message.match(/\\d+/)[0] }}",
+      "authentication": "genericCredentialType",
+      "genericAuthType": "httpHeaderAuth",
+      "headers": {
+        "X-Workspace-Id": "18"
+      }
+    },
+    "id": "fs-get",
+    "name": "Consultar Ticket FS",
+    "type": "n8n-nodes-base.httpRequest",
+    "typeVersion": 4.1,
+    "position": [1320, 400],
+    "credentials": {
+      "httpHeaderAuth": {
+        "id": "FS_HTTP_AUTH",
+        "name": "Freshservice Basic Auth"
+      }
+    }
+  },
+  {
+    "parameters": {
+      "values": {
+        "string": [
+          {
+            "name": "resposta",
+            "value": "🎫 *Status do chamado {{ $('Consultar Ticket FS').item.json.ticket.id }}* \\n📌 Assunto: {{ $('Consultar Ticket FS').item.json.ticket.subject }} \\n📊 Situação: {{ $('Consultar Ticket FS').item.json.ticket.status_name }} \\n🔄 Prioridade: {{ $('Consultar Ticket FS').item.json.ticket.priority_name }}"
+          }
+        ]
+      }
+    },
+    "id": "fs-resp-consulta",
+    "name": "Formata resposta consulta",
+    "type": "n8n-nodes-base.set",
+    "typeVersion": 3.2,
+    "position": [1560, 400]
+  }
+]
